@@ -1,0 +1,65 @@
+
+name: Snyk SCA Security Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  sca-gate:
+    name: SCA Security Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up Snyk CLI
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@master
+
+      # 3. Generate SBOM (CycloneDX)
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+
+      # 4. Run Snyk SCA security gate
+      - name: Snyk SCA Security Gate
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test \
+            --all-projects \
+            --severity-threshold=high \
+            --sarif-file-output=snyk-sca.sarif \
+            --json-file-output=snyk-sca.json
+
+      # 5. Upload Snyk findings to GitHub Security
+      - name: Upload Snyk SARIF
+        if: always() && hashFiles('snyk-sca.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-sca.sarif
+          category: snyk-sca
+
+      # 6. Upload SBOM and Snyk reports
+      - name: Upload SCA Reports and SBOM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-sca-reports
+          path: |
+            sbom.cdx.json
+            snyk-sca.json
+            snyk-sca.sarif
+          if-no-files-found: warn
+          retention-days: 30
