@@ -14,7 +14,7 @@ jobs:
       - name: Snyk Code (SAST)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-code.sarif
+        run: snyk code test --report --project-name=nodejs-goof-sast --target-reference="${{ github.head_ref || github.ref_name }}" --severity-threshold=high --sarif-file-output=snyk-code.sarif
       - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
